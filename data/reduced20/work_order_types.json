@@ -1,0 +1,98 @@
+{	"org":"Test", 
+	"dataList":[
+	{
+		"name":"type1",
+		"operations":[
+								{"operation":"Cutting",
+								 "durationHours":2
+								},
+								{"operation":"Layup",
+								 "durationHours":8
+								},
+								{"operation":"Cure",
+								 "durationHours":6
+								},
+								{"operation":"Cooling",
+								 "durationHours":5
+								},
+								{"operation":"Surface finish",
+								 "durationHours":3
+								}
+							]		
+	},
+	{
+		"name":"type2",
+		"operations":[
+								{"operation":"Cutting",
+								 "durationHours":1.5
+								},
+								{"operation":"Layup",
+								 "durationHours":7
+								},
+								{"operation":"Cure",
+								 "durationHours":6
+								},
+								{"operation":"Cooling",
+								 "durationHours":4
+								},
+								{"operation":"Surface finish",
+								 "durationHours":5
+								}
+							]		
+	},
+	{
+		"name":"type3",
+		"operations":[
+								{"operation":"Tool Preparation",
+								 "durationHours":2
+								},
+								{"operation":"Layup",
+								 "durationHours":6.5
+								},
+								{"operation":"Cure",
+								 "durationHours":4
+								},
+								{"operation":"Cooling",
+								 "durationHours":1
+								},
+								{"operation":"Surface finish",
+								 "durationHours":3
+								}
+							]		
+	},
+	{
+		"name":"type4",
+		"operations":[
+								{"operation":"Tool Preparation",
+								 "durationHours":3
+								},
+								{"operation":"Cure",
+								 "durationHours":4
+								},
+								{"operation":"Cooling",
+								 "durationHours":1
+								},
+								{"operation":"Surface finish",
+								 "durationHours":3
+								}
+							]		
+	},
+	{
+		"name":"type5",
+		"operations":[
+								{"operation":"Tool Preparation",
+								 "durationHours":5
+								},
+								{"operation":"Cure",
+								 "durationHours":8.3
+								},
+								{"operation":"Cooling",
+								 "durationHours":1
+								},
+								{"operation":"Surface finish",
+								 "durationHours":3
+								}
+							]		
+	}
+	]
+}

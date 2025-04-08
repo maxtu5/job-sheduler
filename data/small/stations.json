@@ -1,0 +1,15 @@
+{
+  "org": "Test",
+  "dataList": [
+    {
+      "name": "Cutting room",
+      "operation": "Cutting",
+      "capacity": 2
+    },
+    {
+      "name": "Layup room",
+      "operation": "Layup",
+      "capacity": 2
+    }
+  ]
+}

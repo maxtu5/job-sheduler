@@ -1,0 +1,57 @@
+{
+  "org": "Test",
+  "dataList": [
+    {
+      "name": "type1",
+      "operations": [
+        {
+          "operation": "Cutting",
+          "durationHours": 2
+        },
+        {
+          "operation": "Layup",
+          "durationHours": 8
+        }
+      ]
+    },
+    {
+      "name": "type2",
+      "operations": [
+        {
+          "operation": "Cutting",
+          "durationHours": 8
+        },
+        {
+          "operation": "Layup",
+          "durationHours": 3
+        }
+      ]
+    },
+    {
+      "name": "type3",
+      "operations": [
+        {
+          "operation": "Cutting",
+          "durationHours": 2
+        },
+        {
+          "operation": "Layup",
+          "durationHours": 6.5
+        }
+      ]
+    },
+    {
+      "name": "type4",
+      "operations": [
+        {
+          "operation": "Cutting",
+          "durationHours": 2
+        },
+        {
+          "operation": "Layup",
+          "durationHours": 4
+        }
+      ]
+    }
+  ]
+}
