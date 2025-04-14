@@ -1,6 +1,9 @@
 package services;
 
 import model.*;
+import model.solutiontree.ScheduleNode;
+import model.solutiontree.ScheduleNodeRemainingOrders;
+import model.solutiontree.ScheduleNodeType;
 
 import java.util.*;
 import java.util.stream.Collectors;

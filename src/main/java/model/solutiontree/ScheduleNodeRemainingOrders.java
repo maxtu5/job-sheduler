@@ -1,4 +1,4 @@
-package model;
+package model.solutiontree;
 
 import lombok.AllArgsConstructor;
 

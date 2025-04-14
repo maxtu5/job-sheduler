@@ -6,6 +6,8 @@ import model.*;
 import model.dto.OrderDto;
 import model.dto.StationDto;
 import model.report.ReportTemplate;
+import model.solutiontree.ScheduleNode;
+import model.solutiontree.ScheduleNodeType;
 import utils.DateTimeUtils;
 
 import java.time.LocalDate;
@@ -18,9 +20,9 @@ import static java.time.temporal.ChronoUnit.HOURS;
 
 public class OrderSchedulerService {
 
-    private static int maxOrdersInPortion = 1000;
-    private static LocalTime workdayFrom;
-    private static LocalTime workdayTo;
+    private final int maxOrdersInPortion;
+    private final LocalTime workdayFrom;
+    private final LocalTime workdayTo;
 
     private final Map<Integer, OrderType> orderTypes;
     private final List<StationDto> stationsDtos;
@@ -30,9 +32,9 @@ public class OrderSchedulerService {
 
     private final SolutionTreeService solutionTreeService;
 
-    public OrderSchedulerService(List<StationDto> stations, Map<Integer, OrderType> orderTypes, LocalDate firstDate, LocalTime workdayFrom, LocalTime workdayTo, int maxOrdersInPortion) {
+    public OrderSchedulerService(List<StationDto> stationsDtos, Map<Integer, OrderType> orderTypes, LocalDate firstDate, LocalTime workdayFrom, LocalTime workdayTo, int maxOrdersInPortion) {
         this.orderTypes = orderTypes;
-        stationsDtos = stations;
+        this.stationsDtos = stationsDtos;
         this.firstDate = firstDate == null ? LocalDate.now().plusDays(1) : firstDate;
         this.workdayFrom = workdayFrom;
         this.workdayTo = workdayTo;
@@ -216,11 +218,11 @@ public class OrderSchedulerService {
     private LocalTime addWorkUnitToMachinePlan(List<WorkUnit> machinePlanForDate, WorkUnit newWorkUnit, LocalTime earliestTime) {
 
         LocalTime earliestStart = earliestTime == null ? workdayFrom : earliestTime;
-        int current = 0;
+        int index = 0;
         LocalTime intervalStart = workdayFrom;
         LocalTime intervalEnd = workdayTo;
         for (WorkUnit workUnit : machinePlanForDate) {
-            current++;
+            index++;
             if (earliestStart.isAfter(workUnit.getBeginTime())) {
                 intervalStart = DateTimeUtils.plusDoubleHours(workUnit.getBeginTime(), workUnit.getDuration());
             } else {
@@ -237,8 +239,7 @@ public class OrderSchedulerService {
 
         if (newWorkUnit.getDuration() <= DateTimeUtils.doubleHoursBetween(intervalStart, intervalEnd)) {
             newWorkUnit.setBeginTime(intervalStart);
-            current = Math.max(current, 0);
-            machinePlanForDate.add(current, newWorkUnit);
+            machinePlanForDate.add(index, newWorkUnit);
             return DateTimeUtils.plusDoubleHours(newWorkUnit.getBeginTime(), newWorkUnit.getDuration());
         }
         return null;

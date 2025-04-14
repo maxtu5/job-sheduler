@@ -3,12 +3,10 @@ package model;
 public enum StepType {
     TOOLPREP("Tool Preparation"),
     CUTTING("Cutting"),
-    LAYUP("Layup")
-    ,
+    LAYUP("Layup"),
     CURE("Cure"),
     COOLING("Cooling"),
-    FINISH("Surface finish"),
-    ;
+    FINISH("Surface finish");
 
     private String label;
 
