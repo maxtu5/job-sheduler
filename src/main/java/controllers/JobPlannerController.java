@@ -5,8 +5,9 @@ import com.opencsv.exceptions.CsvException;
 import model.OrderType;
 import model.dto.OrderDto;
 import model.dto.StationDto;
-import org.json.JSONObject;
+import model.report.ReportTemplate;
 import services.OrderSchedulerService;
+import services.ReportService;
 
 import java.io.IOException;
 import java.time.LocalTime;
@@ -30,10 +31,10 @@ public class JobPlannerController {
 
         OrderSchedulerService orderSchedulerService = new OrderSchedulerService(stations, orderTypes, null, WORKDAY_FROM, WORKDAY_TO);
 
-        List<JSONObject> solutions = orderSchedulerService.scheduleOrders(orders);
+        List<ReportTemplate> solutions = orderSchedulerService.scheduleOrders(orders);
 
         if (solutions!=null && !solutions.isEmpty() && solutions.get(0)!=null) {
-            System.out.println(solutions.get(0).toString(4) + "\nBest solutions: " + solutions.size());
+            System.out.println(ReportService.objectMapper.writeValueAsString(solutions.get(0)) + "\nBest solutions: " + solutions.size());
         }
     }
 

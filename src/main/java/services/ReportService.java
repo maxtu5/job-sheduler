@@ -1,24 +1,30 @@
 package services;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import model.StepType;
 import model.Machine;
 import model.WorkUnit;
-import org.json.JSONArray;
-import org.json.JSONObject;
+import model.dto.OrderDto;
+import model.report.*;
 import utils.DateTimeUtils;
 
+import java.io.File;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static java.time.temporal.ChronoUnit.DAYS;
+import static java.time.temporal.ChronoUnit.HOURS;
 
 public class ReportService {
+
+    public static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final String OUTPUT_PATH = "data\\output\\";
 
     private static Map<String, List<ReportNode>> buildOrdersMap(Map<StepType, List<Machine>> resources) {
         return resources.values().stream()
@@ -58,29 +64,86 @@ public class ReportService {
         return retval[0];
     }
 
-    public static JSONObject createReport(Map<StepType, List<Machine>> machines) {
+    public static ReportTemplate createReport(Map<StepType, List<Machine>> machines, List<OrderDto> orderDtos, LocalDateTime firstDate) throws JsonProcessingException {
         Map<String, List<ReportService.ReportNode>> ordersReport = buildOrdersMap(machines);
         ArrayList<Map.Entry<String, List<ReportService.ReportNode>>> ordersReportAsList = new ArrayList<>(ordersReport.entrySet());
         ordersReportAsList.sort(Map.Entry.comparingByKey());
-        JSONArray orders = new JSONArray();
+        List<OrderTemplate> orders = new ArrayList<>();
         ordersReportAsList.forEach((entry) -> {
-            JSONObject order = new JSONObject();
+
             entry.getValue().sort(Comparator.comparing(ReportService.ReportNode::getBeginDateTime));
-            JSONArray steps = new JSONArray();
+            List<OperationTemplate> steps = new ArrayList<>();
             entry.getValue().forEach(reportNode -> {
-                JSONObject step = new JSONObject();
-                step.put("operation", reportNode.getOperation());
-                step.put("place", reportNode.getPlace());
-                step.put("date", reportNode.getBeginDateTime().toLocalDate());
-                step.put("time", reportNode.getBeginDateTime().toLocalTime() + "-" + reportNode.getBeginDateTime().toLocalTime().plusHours(((int) reportNode.getDuration())).plusMinutes((int) (60.0 * (reportNode.getDuration() % 1))));
-                steps.put(step);
+                steps.add(OperationTemplate.builder()
+                        .operation(reportNode.getOperation())
+                        .place(reportNode.getPlace())
+                        .date(reportNode.getBeginDateTime().toLocalDate().toString())
+                        .time(reportNode.getBeginDateTime().toLocalTime() + "-" + reportNode.getBeginDateTime().toLocalTime().plusHours(((int) reportNode.getDuration())).plusMinutes((int) (60.0 * (reportNode.getDuration() % 1))))
+                        .build());
             });
-            order.put("orderId", entry.getKey());
-            order.put("operations", steps);
-            orders.put(order);
+            orders.add(OrderTemplate.builder()
+                    .orderId(entry.getKey())
+                    .operations(steps)
+                    .build());
         });
-        JSONObject retval = new JSONObject();
-        retval.put("orders", orders);
+        LocalDateTime end = calcEndTime(machines);
+        ReportTemplate retval = ReportTemplate.builder()
+                .execution(OrderBatchDataTemplate.builder()
+                        .orders(orders.size())
+                        .orderTypes((int) orderDtos.stream().map(OrderDto::getType).distinct().count())
+                        .makespan(HOURS.between(firstDate, end) + " hours (end " + end.toString() + ")")
+                        .build())
+                .orders(orders)
+                .stations(buildReportByStations(machines))
+                .build();
+
+        String fileName = new File(OUTPUT_PATH).list().length + ".json";
+        try {
+            objectMapper.writeValue(new File(OUTPUT_PATH + fileName), retval);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return retval;
+    }
+
+    public static Map<StepType, List<StationTemplate>> buildReportByStations(Map<StepType, List<Machine>> machines) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        Map<StepType, List<StationTemplate>> retval = new TreeMap<>();
+        machines.forEach((operationType, machineGroup) -> {
+            List<StationTemplate> stations = new ArrayList<>();
+            machineGroup.forEach(machine -> {
+                Map<String, List<String>> orders = new TreeMap<>();
+
+                LocalDate emptyIntervalStart = null;
+                for (Map.Entry<LocalDate, List<WorkUnit>> entry : machine.getPlan().entrySet()) {
+
+                    if (entry.getValue().isEmpty()) {
+                        if (emptyIntervalStart == null) emptyIntervalStart = entry.getKey();
+                        else continue;
+                    } else {
+                        List<String> jobs = new ArrayList<>();
+                        if (emptyIntervalStart != null) {
+                            System.out.println("--" + emptyIntervalStart.format(formatter) +
+                                    (emptyIntervalStart.equals(entry.getKey().minusDays(1)) ? "" :
+                                            "-" + entry.getKey().minusDays(1).format(formatter)) + " no load");
+                            emptyIntervalStart = null;
+                        }
+                        entry.getValue().forEach(workUnit -> {
+                            jobs.add(workUnit.getBeginTime() + "-" + DateTimeUtils.plusDoubleHours(workUnit.getBeginTime(), workUnit.getDuration()) + " " + workUnit.getOrderId());
+                        });
+                        jobs.sort(Comparator.naturalOrder());
+                        orders.put(entry.getKey().toString(), jobs);
+                    }
+                }
+                stations.add(StationTemplate.builder()
+                        .name(machine.getStationName())
+                        .index(machine.getIndex())
+                        .orders(orders)
+                        .build());
+            });
+            retval.put(operationType, stations);
+        });
         return retval;
     }
 
