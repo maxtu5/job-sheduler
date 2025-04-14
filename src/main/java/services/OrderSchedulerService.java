@@ -1,10 +1,11 @@
 package services;
 
 import builders.DataStructBuilders;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import model.*;
 import model.dto.OrderDto;
 import model.dto.StationDto;
-import org.json.JSONObject;
+import model.report.ReportTemplate;
 import utils.DateTimeUtils;
 
 import java.time.LocalDate;
@@ -38,7 +39,7 @@ public class OrderSchedulerService {
         permutationsService = new PermutationsService(orderTypes, HOURS.between(workdayFrom, workdayTo));
     }
 
-    public List<JSONObject> scheduleOrders(List<OrderDto> orderDtos) {
+    public List<ReportTemplate> scheduleOrders(List<OrderDto> orderDtos) throws JsonProcessingException {
 
         int ordersDone = 0;
         List<List<OrderDto>> ordersByPortions = new ArrayList<>();
@@ -60,7 +61,7 @@ public class OrderSchedulerService {
             proceedSchedule(scheduleListsByPortions.get(i).get(0), ordersByPortions.get(i), machines);
         }
 
-        return Arrays.asList(createReport(machines));
+        return Arrays.asList(createReport(machines, orderDtos));
     }
 
     public List<List<ScheduleNode>> scheduleBatchOfOrders(List<OrderDto> orderDtos) {
@@ -160,7 +161,7 @@ public class OrderSchedulerService {
             earliestTime = workdayFrom;
             if (!machine.getPlan().containsKey(planDate)) openNewDateForMachine(machine, planDate);
         }
-        LocalTime endTime = addWorkUnitToPlan(machine.getPlan().get(planDate), workUnit, earliestTime);
+        LocalTime endTime = addWorkUnitToMachinePlan(machine.getPlan().get(planDate), workUnit, earliestTime);
 
         return LocalDateTime.of(planDate, endTime);
     }
@@ -169,13 +170,35 @@ public class OrderSchedulerService {
         machine.getPlan().put(planDate, new ArrayList<>());
     }
 
-    private LocalTime addWorkUnitToPlan(List<WorkUnit> planCurrentDate, WorkUnit newWorkUnit, LocalTime
-            earliestTime) {
+    private boolean hasTime(List<WorkUnit> planCurrentDate, double duration, LocalTime earliestTime) {
         LocalTime earliestStart = earliestTime == null ? workdayFrom : earliestTime;
-        int current = -1;
         LocalTime intervalStart = workdayFrom;
         LocalTime intervalEnd = workdayTo;
         for (WorkUnit workUnit : planCurrentDate) {
+            if (earliestStart.isAfter(workUnit.getBeginTime())) {
+                intervalStart = DateTimeUtils.plusDoubleHours(workUnit.getBeginTime(), workUnit.getDuration());
+            } else {
+                if (duration <= DateTimeUtils.doubleHoursBetween(intervalStart.isBefore(earliestStart) ? earliestStart : intervalStart, workUnit.getBeginTime())) {
+                    intervalStart = intervalStart.isBefore(earliestStart) ? earliestStart : intervalStart;
+                    intervalEnd = workUnit.getBeginTime();
+                    break;
+                } else {
+                    intervalStart = DateTimeUtils.plusDoubleHours(workUnit.getBeginTime(), workUnit.getDuration());
+                }
+            }
+        }
+        intervalStart = intervalStart.isBefore(earliestStart) ? earliestStart : intervalStart;
+
+        return duration <= DateTimeUtils.doubleHoursBetween(intervalStart, intervalEnd);
+    }
+
+    private LocalTime addWorkUnitToMachinePlan(List<WorkUnit> machinePlanForDate, WorkUnit newWorkUnit, LocalTime earliestTime) {
+
+        LocalTime earliestStart = earliestTime == null ? workdayFrom : earliestTime;
+        int current = 0;
+        LocalTime intervalStart = workdayFrom;
+        LocalTime intervalEnd = workdayTo;
+        for (WorkUnit workUnit : machinePlanForDate) {
             current++;
             if (earliestStart.isAfter(workUnit.getBeginTime())) {
                 intervalStart = DateTimeUtils.plusDoubleHours(workUnit.getBeginTime(), workUnit.getDuration());
@@ -192,29 +215,16 @@ public class OrderSchedulerService {
         intervalStart = intervalStart.isBefore(earliestStart) ? earliestStart : intervalStart;
 
         if (newWorkUnit.getDuration() <= DateTimeUtils.doubleHoursBetween(intervalStart, intervalEnd)) {
-            newWorkUnit.setBeginTime(earliestStart);
+            newWorkUnit.setBeginTime(intervalStart);
             current = Math.max(current, 0);
-            planCurrentDate.add(current, newWorkUnit);
+            machinePlanForDate.add(current, newWorkUnit);
             return DateTimeUtils.plusDoubleHours(newWorkUnit.getBeginTime(), newWorkUnit.getDuration());
         }
         return null;
     }
 
-    private boolean hasTime(List<WorkUnit> planCurrentDate, double duration, LocalTime earliestTime) {
-        LocalTime start = earliestTime == null ? workdayFrom : earliestTime;
-
-        LocalTime endTime = planCurrentDate.isEmpty() ? workdayFrom :
-                DateTimeUtils.plusDoubleHours(planCurrentDate.get(planCurrentDate.size() - 1).getBeginTime(),
-                        planCurrentDate.get(planCurrentDate.size() - 1).getDuration());
-
-        LocalTime realStart = start.isAfter(endTime) ? start : endTime;
-
-        return duration <= DateTimeUtils.doubleHoursBetween(realStart, workdayTo);
-    }
-
-
-    public JSONObject createReport(Map<StepType, List<Machine>> machines) {
-        return ReportService.createReport(machines);
+    public ReportTemplate createReport(Map<StepType, List<Machine>> machines, List<OrderDto> orderDtos) throws JsonProcessingException {
+        return ReportService.createReport(machines, orderDtos, LocalDateTime.of(firstDate, workdayFrom));
     }
 
 }
