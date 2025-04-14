@@ -54,12 +54,14 @@ public class ReportService {
                 DateTimeUtils.plusDoubleHours(collect.get(0).getValue().get(collect.get(0).getValue().size() - 1).getBeginTime(),
                         collect.get(0).getValue().get(collect.get(0).getValue().size() - 1).getDuration()))};
         collect.forEach(me -> {
-            LocalDateTime endDateTime = LocalDateTime.of(
-                    me.getKey(),
-                    DateTimeUtils.plusDoubleHours(
-                            me.getValue().get(me.getValue().size() - 1).getBeginTime(),
-                            me.getValue().get(me.getValue().size() - 1).getDuration()));
-            retval[0] = retval[0].isAfter(endDateTime) ? retval[0] : endDateTime;
+            if (me.getValue().size()>0) {
+                LocalDateTime endDateTime = LocalDateTime.of(
+                        me.getKey(),
+                        DateTimeUtils.plusDoubleHours(
+                                me.getValue().get(me.getValue().size() - 1).getBeginTime(),
+                                me.getValue().get(me.getValue().size() - 1).getDuration()));
+                retval[0] = retval[0].isAfter(endDateTime) ? retval[0] : endDateTime;
+            }
         });
         return retval[0];
     }
@@ -123,12 +125,8 @@ public class ReportService {
                         else continue;
                     } else {
                         List<String> jobs = new ArrayList<>();
-                        if (emptyIntervalStart != null) {
-                            System.out.println("--" + emptyIntervalStart.format(formatter) +
-                                    (emptyIntervalStart.equals(entry.getKey().minusDays(1)) ? "" :
-                                            "-" + entry.getKey().minusDays(1).format(formatter)) + " no load");
-                            emptyIntervalStart = null;
-                        }
+                        if (emptyIntervalStart != null) emptyIntervalStart = null;
+
                         entry.getValue().forEach(workUnit -> {
                             jobs.add(workUnit.getBeginTime() + "-" + DateTimeUtils.plusDoubleHours(workUnit.getBeginTime(), workUnit.getDuration()) + " " + workUnit.getOrderId());
                         });

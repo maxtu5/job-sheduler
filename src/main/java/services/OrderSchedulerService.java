@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.time.temporal.ChronoUnit.HOURS;
 
@@ -71,7 +72,7 @@ public class OrderSchedulerService {
         List<List<List<ScheduleNode>>> scheduleListsByPortions = new ArrayList<>();
 
         for (int i = 0; i <= orderDtos.size() / maxOrdersInPortion; i++) {
-            int lastIndex = i==orderDtos.size() / maxOrdersInPortion ? orderDtos.size() : ordersDone + maxOrdersInPortion;
+            int lastIndex = i == orderDtos.size() / maxOrdersInPortion ? orderDtos.size() : ordersDone + maxOrdersInPortion;
             List<OrderDto> subList = orderDtos.subList(ordersDone, lastIndex);
             ordersByPortions.add(subList);
             scheduleListsByPortions.add(scheduleBatchOfOrders(subList));
@@ -195,6 +196,7 @@ public class OrderSchedulerService {
 
     private boolean hasAvailableTimeForDate(List<WorkUnit> planCurrentDate, double duration, LocalTime earliestTime) {
         LocalTime earliestStart = earliestTime == null ? workdayFrom : earliestTime;
+        if (planCurrentDate==null) return duration <= DateTimeUtils.doubleHoursBetween(earliestTime, workdayTo);
         LocalTime intervalStart = workdayFrom;
         LocalTime intervalEnd = workdayTo;
         for (WorkUnit workUnit : planCurrentDate) {
@@ -247,6 +249,125 @@ public class OrderSchedulerService {
 
     public ReportTemplate createReport(Map<StepType, List<Machine>> machines, List<OrderDto> orderDtos) throws JsonProcessingException {
         return ReportService.createReport(machines, orderDtos, LocalDateTime.of(firstDate, workdayFrom));
+    }
+
+    // ============================= ====================
+    public List<ReportTemplate> scheduleIntuitive(List<OrderDto> orderDtos) throws JsonProcessingException {
+
+        Map<StepType, List<Machine>> machines = DataStructBuilders.buildMachinesFromStations(stationsDtos, this.firstDate);
+        Map<String, Stack<WorkUnit>> orders = createOrders(orderDtos);
+                DataStructBuilders.buildWorkUnitsFromOrders(orderDtos, orderTypes);
+
+        LocalDate currentDate = firstDate;
+        List<LocalDateTime> currentFinish = Stream.generate(() -> LocalDateTime.MIN)
+                .limit(orders.size())
+                .collect(Collectors.toList());
+
+        while (!allEmpty(orders)) {
+            boolean continueWithCurrentDate = true;
+            while (continueWithCurrentDate) {
+                continueWithCurrentDate = false;
+                int counter = -1;
+                for (Stack<WorkUnit> order : orders.values()) {
+                    counter++;
+                    if (order.isEmpty()) continue;
+                    WorkUnit workUnit = order.pop();
+                    LocalDateTime newDateTime = addWorkUnitToMachineGroup(
+                            machines.get(workUnit.getStepType()),
+                            currentDate,
+                            workUnit,
+                            currentFinish.get(counter).equals(LocalDateTime.MIN) ? null : currentFinish.get(counter)
+                    );
+                    if (newDateTime != null) {
+                        currentFinish.set(counter, newDateTime);
+                        continueWithCurrentDate = true;
+                    } else order.push(workUnit);
+                }
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+
+        return Arrays.asList(ReportService.createReport(machines, orderDtos, LocalDateTime.of(firstDate, workdayFrom)));
+    }
+
+    private Map<String, Stack<WorkUnit>> createOrders(List<OrderDto> orderDtos) {
+        Map<String, Stack<WorkUnit>> ordersByWorkUnits = new HashMap<>();
+        for (OrderDto orderDto : orderDtos) {
+            Stack<WorkUnit> stack = new Stack<>();
+            int orderTypeId = DataStructBuilders.typeIdByName(orderTypes, orderDto.getType());
+            for (int j = orderTypes.get(orderTypeId).steps.size() - 1; j >= 0; j--) {
+                WorkUnit newWorkUnit = WorkUnit.builder()
+                        .orderId(orderDto.getOrderId())
+                        .stepType(orderTypes.get(orderTypeId).steps.get(j).getStepType())
+                        .beginTime(null)
+                        .duration(orderTypes.get(orderTypeId).steps.get(j).getDuration())
+                        .build();
+                stack.push(newWorkUnit);
+            }
+            Stack<WorkUnit> newStack = new Stack<>();
+            newStack.addAll(stack);
+            ordersByWorkUnits.put(orderDto.getOrderId(), newStack);
+        }
+        return ordersByWorkUnits;
+    }
+
+    private LocalDateTime addWorkUnitToMachineGroup(
+            List<Machine> machineGroup, LocalDate currentDate, WorkUnit workUnit, LocalDateTime earliestDateTime) {
+
+        if (earliestDateTime!=null && earliestDateTime.toLocalDate().isAfter(currentDate)) return null;
+
+        LocalTime earliestTime = earliestDateTime == null || earliestDateTime.toLocalDate().isBefore(currentDate) ? workdayFrom :
+                earliestDateTime.toLocalTime();
+
+        Machine bestMachine = null;
+        LocalTime bestTime = null;
+        for (Machine machine : machineGroup) {
+            if (hasAvailableTimeForDate(machine.getPlan().get(currentDate), workUnit.getDuration(), earliestTime)) {
+                if (bestMachine==null) {
+                    bestMachine = machine;
+                    bestTime = availableTimeForDate(machine.getPlan().get(currentDate), workUnit.getDuration(), earliestTime);
+                } else {
+                    LocalTime newTime = availableTimeForDate(machine.getPlan().get(currentDate), workUnit.getDuration(), earliestTime);
+                    if (bestTime.isAfter(newTime)) {
+                        bestMachine = machine;
+                        bestTime = newTime;
+                    }
+                }
+            }
+        }
+
+        return bestMachine==null?null : addWorkUnitToMachine(bestMachine, workUnit, LocalDateTime.of(currentDate, earliestTime));
+    }
+
+    private LocalTime availableTimeForDate(List<WorkUnit> planCurrentDate, double duration, LocalTime earliestTime) {
+        LocalTime earliestStart = earliestTime == null ? workdayFrom : earliestTime;
+        if (planCurrentDate==null)
+            return duration <= DateTimeUtils.doubleHoursBetween(earliestStart, workdayTo) ? earliestStart : null;
+        LocalTime intervalStart = workdayFrom;
+        LocalTime intervalEnd = workdayTo;
+        for (WorkUnit workUnit : planCurrentDate) {
+            if (earliestStart.isAfter(workUnit.getBeginTime())) {
+                intervalStart = DateTimeUtils.plusDoubleHours(workUnit.getBeginTime(), workUnit.getDuration());
+            } else {
+                if (duration <= DateTimeUtils.doubleHoursBetween(intervalStart.isBefore(earliestStart) ? earliestStart : intervalStart, workUnit.getBeginTime())) {
+                    intervalStart = intervalStart.isBefore(earliestStart) ? earliestStart : intervalStart;
+                    intervalEnd = workUnit.getBeginTime();
+                    break;
+                } else {
+                    intervalStart = DateTimeUtils.plusDoubleHours(workUnit.getBeginTime(), workUnit.getDuration());
+                }
+            }
+        }
+        intervalStart = intervalStart.isBefore(earliestStart) ? earliestStart : intervalStart;
+
+        return duration <= DateTimeUtils.doubleHoursBetween(intervalStart, intervalEnd) ? intervalStart : null;
+    }
+
+    private boolean allEmpty(Map<?, Stack<WorkUnit>> orders) {
+        for (Stack<WorkUnit> stack : orders.values()) {
+            if (!stack.isEmpty()) return false;
+        }
+        return true;
     }
 
 }

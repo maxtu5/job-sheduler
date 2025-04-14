@@ -32,8 +32,10 @@ public class JobPlannerController {
 
         OrderSchedulerService orderSchedulerService = new OrderSchedulerService(stations, orderTypes, null, WORKDAY_FROM, WORKDAY_TO, MAX_ORDERS_IN_PORTION);
 
-        List<ReportTemplate> solutions = orderSchedulerService.scheduleOrdersA(orders, 16, 12, 16);
+//        List<ReportTemplate> solutions = orderSchedulerService.scheduleOrdersA(orders, 16, 12, 16);
 //        List<ReportTemplate> solutions = orderSchedulerService.scheduleOrders(orders);
+        List<ReportTemplate> solutions = orderSchedulerService.scheduleIntuitive(orders);
+
 
         if (solutions!=null && !solutions.isEmpty() && solutions.get(0)!=null) {
             System.out.println(ReportService.objectMapper.writeValueAsString(solutions.get(0)) + "\nBest solutions: " + solutions.size());
