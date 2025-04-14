@@ -1,6 +1,6 @@
 package services;
 
-import model.ScheduleNodeRemainingOrders;
+import model.solutiontree.ScheduleNodeRemainingOrders;
 
 import java.util.Map;
 

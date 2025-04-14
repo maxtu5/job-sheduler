@@ -1,4 +1,4 @@
-package model;
+package model.solutiontree;
 
 public enum ScheduleNodeType {
     SQUARE, ROUND;
