@@ -20,13 +20,6 @@ public class BoundingService {
                 maxCt + minDurationNextStepsScheduledOrders;
     }
 
-//    public double lbj(Map<Integer, Double> machineLoads, Map<Integer, ScheduleNodeRemainingOrders> remainingOrders) {
-//        double minCt = machineLoads.values().stream().mapToDouble(i->i).max().getAsDouble();
-//
-//
-//    }
-
-
     private double remainingOrdersNextStepsDurationMin(Map<Integer, ScheduleNodeRemainingOrders> remainingOrders) {
         return remainingOrders.size() == 0 ? 0 :
                 remainingOrders.values().stream().mapToDouble(ro -> ro.durationNextSteps).min().getAsDouble();
