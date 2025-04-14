@@ -1,0 +1,30 @@
+{	
+	"org":"Test", 
+	"dataList":[
+		{
+			"name": "Cutting",
+			"operation": "Cutting",
+			"capacity":2},
+		{
+			"name": "Clean room",
+			"operation": "Layup",
+			"capacity":10},				
+		{
+			"name": "Oven",
+			"operation": "Cure",
+			"capacity":3},
+		{
+			"name": "Hallway",
+			"operation": "Cooling",
+			"capacity":10},
+		{
+			"name": "QA room",
+			"operation": "Surface finish",
+			"capacity":10},
+		{
+			"name": "Tool room",
+			"operation": "Tool Preparation",
+			"capacity":5}
+				
+		]
+}

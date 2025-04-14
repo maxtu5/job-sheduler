@@ -18,7 +18,7 @@ import static java.time.temporal.ChronoUnit.HOURS;
 
 public class OrderSchedulerService {
 
-    private static final int MAX_ORDERS_IN_PORTION = 9;
+    private static int maxOrdersInPortion = 1000;
     private static LocalTime workdayFrom;
     private static LocalTime workdayTo;
 
@@ -28,15 +28,38 @@ public class OrderSchedulerService {
 
     LocalDateTime earliestEndTime = null;
 
-    private final PermutationsService permutationsService;
+    private final SolutionTreeService solutionTreeService;
 
-    public OrderSchedulerService(List<StationDto> stations, Map<Integer, OrderType> orderTypes, LocalDate firstDate, LocalTime from, LocalTime to) {
+    public OrderSchedulerService(List<StationDto> stations, Map<Integer, OrderType> orderTypes, LocalDate firstDate, LocalTime workdayFrom, LocalTime workdayTo, int maxOrdersInPortion) {
         this.orderTypes = orderTypes;
         stationsDtos = stations;
         this.firstDate = firstDate == null ? LocalDate.now().plusDays(1) : firstDate;
-        workdayFrom = from;
-        workdayTo = to;
-        permutationsService = new PermutationsService(orderTypes, HOURS.between(workdayFrom, workdayTo));
+        this.workdayFrom = workdayFrom;
+        this.workdayTo = workdayTo;
+        this.maxOrdersInPortion = maxOrdersInPortion;
+        solutionTreeService = new SolutionTreeService(orderTypes, HOURS.between(workdayFrom, workdayTo));
+    }
+
+    public List<ReportTemplate> scheduleOrdersA(List<OrderDto> orderDtos, int... portions) throws JsonProcessingException {
+
+        int ordersDone = 0;
+        List<List<OrderDto>> ordersByPortions = new ArrayList<>();
+        List<List<List<ScheduleNode>>> scheduleListsByPortions = new ArrayList<>();
+
+        for (int portion : portions) {
+            List<OrderDto> subList = orderDtos.subList(ordersDone, ordersDone + portion);
+            ordersByPortions.add(subList);
+            scheduleListsByPortions.add(scheduleBatchOfOrders(subList));
+            ordersDone += portion;
+        }
+
+        Map<StepType, List<Machine>> machines = DataStructBuilders.buildMachinesFromStations(stationsDtos, this.firstDate);
+
+        for (int i = 0; i < scheduleListsByPortions.size(); i++) {
+            proceedSchedule(scheduleListsByPortions.get(i).get(0), ordersByPortions.get(i), machines);
+        }
+
+        return Arrays.asList(createReport(machines, orderDtos));
     }
 
     public List<ReportTemplate> scheduleOrders(List<OrderDto> orderDtos) throws JsonProcessingException {
@@ -45,15 +68,13 @@ public class OrderSchedulerService {
         List<List<OrderDto>> ordersByPortions = new ArrayList<>();
         List<List<List<ScheduleNode>>> scheduleListsByPortions = new ArrayList<>();
 
-        for (int i = 0; i < orderDtos.size() / MAX_ORDERS_IN_PORTION; i++) {
-            List<OrderDto> subList = orderDtos.subList(ordersDone, ordersDone + MAX_ORDERS_IN_PORTION);
+        for (int i = 0; i <= orderDtos.size() / maxOrdersInPortion; i++) {
+            int lastIndex = i==orderDtos.size() / maxOrdersInPortion ? orderDtos.size() : ordersDone + maxOrdersInPortion;
+            List<OrderDto> subList = orderDtos.subList(ordersDone, lastIndex);
             ordersByPortions.add(subList);
             scheduleListsByPortions.add(scheduleBatchOfOrders(subList));
-            ordersDone += MAX_ORDERS_IN_PORTION;
+            ordersDone += maxOrdersInPortion;
         }
-        List<OrderDto> subList = orderDtos.subList(ordersDone, orderDtos.size());
-        ordersByPortions.add(subList);
-        scheduleListsByPortions.add(scheduleBatchOfOrders(subList));
 
         Map<StepType, List<Machine>> machines = DataStructBuilders.buildMachinesFromStations(stationsDtos, this.firstDate);
 
@@ -74,7 +95,7 @@ public class OrderSchedulerService {
 
         Map<StepType, List<Machine>> machines = DataStructBuilders.buildMachinesFromStations(stationsDtos, this.firstDate);
 
-        List<List<ScheduleNode>> allSchedules = permutationsService.generateAllSchedules(
+        List<List<ScheduleNode>> allSchedules = solutionTreeService.generateAllSchedules(
                 machines.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size())),
                 orderNumsByTypeIds);
         allSchedules = refineSchedules(allSchedules, orderDtos);
@@ -156,7 +177,7 @@ public class OrderSchedulerService {
         LocalTime earliestTime = earliestDateTime == null ? workdayFrom : earliestDateTime.toLocalTime();
         if (!machine.getPlan().containsKey(planDate))
             openNewDateForMachine(machine, planDate);
-        while (!hasTime(machine.getPlan().get(planDate), workUnit.getDuration(), earliestTime)) {
+        while (!hasAvailableTimeForDate(machine.getPlan().get(planDate), workUnit.getDuration(), earliestTime)) {
             planDate = planDate.plusDays(1);
             earliestTime = workdayFrom;
             if (!machine.getPlan().containsKey(planDate)) openNewDateForMachine(machine, planDate);
@@ -170,7 +191,7 @@ public class OrderSchedulerService {
         machine.getPlan().put(planDate, new ArrayList<>());
     }
 
-    private boolean hasTime(List<WorkUnit> planCurrentDate, double duration, LocalTime earliestTime) {
+    private boolean hasAvailableTimeForDate(List<WorkUnit> planCurrentDate, double duration, LocalTime earliestTime) {
         LocalTime earliestStart = earliestTime == null ? workdayFrom : earliestTime;
         LocalTime intervalStart = workdayFrom;
         LocalTime intervalEnd = workdayTo;

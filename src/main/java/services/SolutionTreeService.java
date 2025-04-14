@@ -6,7 +6,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class PermutationsService {
+public class SolutionTreeService {
 
     private final double HOURS_PER_DAY = 24;
     private final Map<Integer, OrderType> orderTypes;
@@ -14,7 +14,7 @@ public class PermutationsService {
     private final BoundingService boundingService;
     private final boolean doBound = true;
 
-    public PermutationsService(Map<Integer, OrderType> orderTypes, double workhoursPerDay) {
+    public SolutionTreeService(Map<Integer, OrderType> orderTypes, double workhoursPerDay) {
         this.orderTypes = orderTypes;
         this.workhoursPerDay = workhoursPerDay;
         boundingService = new BoundingService();
